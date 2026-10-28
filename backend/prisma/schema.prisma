@@ -1,0 +1,561 @@
+// Multi-Hub Enterprise Command Center Platform Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// CORE PLATFORM MODELS
+// ==========================================
+
+model Company {
+  id        String   @id @default(uuid())
+  name      String
+  code      String   @unique
+  email     String
+  phone     String?
+  address   String?
+  city      String?
+  state     String?
+  zipCode   String?  @map("zip_code")
+  country   String?
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users           User[]
+  departments     Department[]
+  vendors         Vendor[]
+  invoices        Invoice[]
+  roles           Role[]
+  permissions     Permission[]
+  glAccounts      GlAccount[]
+  doaMatrixRules  DoaMatrixRule[]
+  workflows       Workflow[]
+  notifications   Notification[]
+  auditLogs       AuditLog[]
+  settings        CompanySetting[]
+
+  @@map("companies")
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  password     String
+  firstName    String    @map("first_name")
+  lastName     String    @map("last_name")
+  phone        String?
+  avatar       String?
+  azureAdId    String?   @unique @map("azure_ad_id")
+  companyId    String    @map("company_id")
+  departmentId String?   @map("department_id")
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  company           Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  department        Department?       @relation(fields: [departmentId], references: [id])
+  roles             Role[]
+  approvals         Approval[]
+  delegatedApprovals Approval[]      @relation("DelegatedApprovals")
+  sessions          Session[]
+  auditLogs         AuditLog[]
+  comments          Comment[]
+  notifications     Notification[]
+  workflowInstances WorkflowInstance[]
+  escalations       Escalation[]
+
+  @@index([email])
+  @@index([companyId])
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String
+  code        String
+  description String?
+  companyId   String   @map("company_id")
+  isSystem    Boolean  @default(false) @map("is_system")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  users       User[]
+  permissions Permission[]
+
+  @@unique([code, companyId])
+  @@index([companyId])
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  companyId   String   @map("company_id")
+  resource    String
+  action      String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  roles   Role[]
+
+  @@unique([companyId, resource, action])
+  @@index([companyId])
+  @@map("permissions")
+}
+
+model Department {
+  id        String   @id @default(uuid())
+  name      String
+  code      String
+  companyId String   @map("company_id")
+  headId    String?  @map("head_id")
+  parentId  String?  @map("parent_id")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  company         Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  users           User[]
+  invoices        Invoice[]
+  doaMatrixRules  DoaMatrixRule[]
+
+  @@unique([code, companyId])
+  @@index([companyId])
+  @@map("departments")
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  accessToken  String   @unique @map("access_token")
+  refreshToken String   @unique @map("refresh_token")
+  expiresAt    DateTime @map("expires_at")
+  ipAddress    String?  @map("ip_address")
+  userAgent    String?  @map("user_agent")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([accessToken])
+  @@map("sessions")
+}
+
+// ==========================================
+// VENDOR MANAGEMENT
+// ==========================================
+
+model Vendor {
+  id            String   @id @default(uuid())
+  name          String
+  code          String
+  email         String
+  phone         String?
+  address       String?
+  city          String?
+  state         String?
+  zipCode       String?  @map("zip_code")
+  country       String?
+  taxId         String?  @map("tax_id")
+  gstNumber     String?  @map("gst_number")
+  panNumber     String?  @map("pan_number")
+  msmeStatus    String?  @map("msme_status")
+  paymentTerms  Int      @default(30) @map("payment_terms")
+  category      String?
+  isActive      Boolean  @default(true) @map("is_active")
+  companyId     String   @map("company_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoices Invoice[]
+
+  @@unique([code, companyId])
+  @@index([companyId])
+  @@index([category])
+  @@map("vendors")
+}
+
+// ==========================================
+// GL ACCOUNTS
+// ==========================================
+
+model GlAccount {
+  id            String   @id @default(uuid())
+  accountNumber String   @map("account_number")
+  accountName   String   @map("account_name")
+  accountType   String   @map("account_type")
+  category      String?
+  isActive      Boolean  @default(true) @map("is_active")
+  companyId     String   @map("company_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoiceLineItems InvoiceLineItem[]
+
+  @@unique([accountNumber, companyId])
+  @@index([companyId])
+  @@map("gl_accounts")
+}
+
+// ==========================================
+// INVOICE MANAGEMENT
+// ==========================================
+
+model Invoice {
+  id                String    @id @default(uuid())
+  referenceNumber   String    @unique @map("reference_number")
+  invoiceNumber     String    @map("invoice_number")
+  vendorId          String    @map("vendor_id")
+  companyId         String    @map("company_id")
+  departmentId      String?   @map("department_id")
+  invoiceDate       DateTime  @map("invoice_date")
+  dueDate           DateTime  @map("due_date")
+  poNumber          String?   @map("po_number")
+  description       String?
+  category          String?
+  subtotal          Decimal   @db.Decimal(15, 2)
+  taxAmount         Decimal   @map("tax_amount") @db.Decimal(15, 2)
+  totalAmount       Decimal   @map("total_amount") @db.Decimal(15, 2)
+  amountPaid        Decimal   @default(0) @map("amount_paid") @db.Decimal(15, 2)
+  amountDue         Decimal   @map("amount_due") @db.Decimal(15, 2)
+  currency          String    @default("INR")
+  status            String    @default("draft")
+  approvalStatus    String    @default("not_required") @map("approval_status")
+  paymentStatus     String    @default("unpaid") @map("payment_status")
+  doaLevel          Int?      @map("doa_level")
+  hasIrn            Boolean   @default(false) @map("has_irn")
+  irnNumber         String?   @map("irn_number")
+  source            String    @default("manual")
+  emailIntakeId     String?   @map("email_intake_id")
+  attachmentCount   Int       @default(0) @map("attachment_count")
+  exceptionReason   String?   @map("exception_reason")
+  isPosted          Boolean   @default(false) @map("is_posted")
+  postedAt          DateTime? @map("posted_at")
+  erpReference      String?   @map("erp_reference")
+  ageInDays         Int?      @map("age_in_days")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  vendor            Vendor              @relation(fields: [vendorId], references: [id])
+  company           Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  department        Department?         @relation(fields: [departmentId], references: [id])
+  emailIntake       EmailIntake?        @relation(fields: [emailIntakeId], references: [id])
+  lineItems         InvoiceLineItem[]
+  approvals         Approval[]
+  comments          Comment[]
+  attachments       Attachment[]
+  workflowInstances WorkflowInstance[]
+  escalations       Escalation[]
+
+  @@index([vendorId])
+  @@index([companyId])
+  @@index([status])
+  @@index([approvalStatus])
+  @@index([paymentStatus])
+  @@index([category])
+  @@index([referenceNumber])
+  @@map("invoices")
+}
+
+model InvoiceLineItem {
+  id          String  @id @default(uuid())
+  invoiceId   String  @map("invoice_id")
+  lineNumber  Int     @map("line_number")
+  description String
+  quantity    Decimal @db.Decimal(10, 2)
+  unitPrice   Decimal @map("unit_price") @db.Decimal(15, 2)
+  amount      Decimal @db.Decimal(15, 2)
+  glAccountId String? @map("gl_account_id")
+  taxAmount   Decimal @default(0) @map("tax_amount") @db.Decimal(15, 2)
+
+  invoice   Invoice    @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  glAccount GlAccount? @relation(fields: [glAccountId], references: [id])
+
+  @@index([invoiceId])
+  @@map("invoice_line_items")
+}
+
+model Attachment {
+  id           String   @id @default(uuid())
+  invoiceId    String   @map("invoice_id")
+  fileName     String   @map("file_name")
+  fileType     String   @map("file_type")
+  fileSize     Int      @map("file_size")
+  filePath     String   @map("file_path")
+  uploadedBy   String?  @map("uploaded_by")
+  uploadedAt   DateTime @default(now()) @map("uploaded_at")
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("attachments")
+}
+
+// ==========================================
+// EMAIL INTAKE
+// ==========================================
+
+model EmailIntake {
+  id                String    @id @default(uuid())
+  messageId         String    @unique @map("message_id")
+  from              String
+  to                String
+  subject           String?
+  body              String?
+  receivedAt        DateTime  @map("received_at")
+  processedAt       DateTime? @map("processed_at")
+  status            String    @default("received")
+  attachmentCount   Int       @default(0) @map("attachment_count")
+  validationStatus  String?   @map("validation_status")
+  validationErrors  Json?     @map("validation_errors")
+  ocrData           Json?     @map("ocr_data")
+  isSuspicious      Boolean   @default(false) @map("is_suspicious")
+  suspicionReasons  Json?     @map("suspicion_reasons")
+  retryCount        Int       @default(0) @map("retry_count")
+  errorMessage      String?   @map("error_message")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  invoices Invoice[]
+
+  @@index([status])
+  @@index([receivedAt])
+  @@map("email_intake")
+}
+
+// ==========================================
+// APPROVAL WORKFLOW ENGINE
+// ==========================================
+
+model Approval {
+  id          String    @id @default(uuid())
+  invoiceId   String    @map("invoice_id")
+  approverId  String    @map("approver_id")
+  delegatedTo String?   @map("delegated_to")
+  level       Int
+  status      String    @default("pending")
+  action      String?
+  comments    String?
+  assignedAt  DateTime  @default(now()) @map("assigned_at")
+  actionedAt  DateTime? @map("actioned_at")
+  dueAt       DateTime? @map("due_at")
+  isEscalated Boolean   @default(false) @map("is_escalated")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  approver    User     @relation(fields: [approverId], references: [id])
+  delegate    User?    @relation("DelegatedApprovals", fields: [delegatedTo], references: [id])
+
+  @@index([invoiceId])
+  @@index([approverId])
+  @@index([status])
+  @@index([level])
+  @@map("approvals")
+}
+
+model DoaMatrixRule {
+  id               String   @id @default(uuid())
+  companyId        String   @map("company_id")
+  roleCode         String   @map("role_code")
+  departmentId     String?  @map("department_id")
+  minAmount        Decimal  @map("min_amount") @db.Decimal(15, 2)
+  maxAmount        Decimal  @map("max_amount") @db.Decimal(15, 2)
+  requiresApproval Boolean  @default(true) @map("requires_approval")
+  approvalLevel    Int      @map("approval_level")
+  autoApprove      Boolean  @default(false) @map("auto_approve")
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  department Department? @relation(fields: [departmentId], references: [id])
+
+  @@index([companyId])
+  @@index([roleCode])
+  @@index([approvalLevel])
+  @@map("doa_matrix_rules")
+}
+
+// ==========================================
+// WORKFLOW ENGINE
+// ==========================================
+
+model Workflow {
+  id          String   @id @default(uuid())
+  name        String
+  code        String
+  description String?
+  companyId   String   @map("company_id")
+  entityType  String   @map("entity_type")
+  definition  Json
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  company   Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  instances WorkflowInstance[]
+
+  @@unique([code, companyId])
+  @@index([companyId])
+  @@map("workflows")
+}
+
+model WorkflowInstance {
+  id           String    @id @default(uuid())
+  workflowId   String    @map("workflow_id")
+  entityType   String    @map("entity_type")
+  entityId     String    @map("entity_id")
+  invoiceId    String?   @map("invoice_id")
+  currentState String    @map("current_state")
+  status       String    @default("in_progress")
+  initiatedBy  String    @map("initiated_by")
+  completedAt  DateTime? @map("completed_at")
+  data         Json?
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  workflow  Workflow @relation(fields: [workflowId], references: [id])
+  invoice   Invoice? @relation(fields: [invoiceId], references: [id])
+  initiator User     @relation(fields: [initiatedBy], references: [id])
+
+  @@index([workflowId])
+  @@index([entityType, entityId])
+  @@index([invoiceId])
+  @@map("workflow_instances")
+}
+
+// ==========================================
+// ESCALATION ENGINE
+// ==========================================
+
+model Escalation {
+  id          String    @id @default(uuid())
+  invoiceId   String    @map("invoice_id")
+  type        String
+  reason      String
+  severity    String
+  escalatedBy String    @map("escalated_by")
+  assignedTo  String?   @map("assigned_to")
+  status      String    @default("open")
+  resolvedAt  DateTime? @map("resolved_at")
+  resolution  String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  invoice      Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  escalatedByUser User @relation(fields: [escalatedBy], references: [id])
+
+  @@index([invoiceId])
+  @@index([status])
+  @@index([severity])
+  @@map("escalations")
+}
+
+// ==========================================
+// NOTIFICATION ENGINE
+// ==========================================
+
+model Notification {
+  id         String    @id @default(uuid())
+  userId     String    @map("user_id")
+  companyId  String    @map("company_id")
+  type       String
+  title      String
+  message    String
+  data       Json?
+  priority   String    @default("normal")
+  isRead     Boolean   @default(false) @map("is_read")
+  readAt     DateTime? @map("read_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([companyId])
+  @@index([isRead])
+  @@map("notifications")
+}
+
+// ==========================================
+// COMMENTS
+// ==========================================
+
+model Comment {
+  id        String   @id @default(uuid())
+  invoiceId String   @map("invoice_id")
+  userId    String   @map("user_id")
+  content   String
+  type      String   @default("general")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@index([invoiceId])
+  @@index([userId])
+  @@map("comments")
+}
+
+// ==========================================
+// AUDIT TRAIL ENGINE
+// ==========================================
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  companyId  String   @map("company_id")
+  userId     String   @map("user_id")
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  changes    Json?
+  metadata   Json?
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@index([companyId])
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ==========================================
+// SYSTEM SETTINGS
+// ==========================================
+
+model CompanySetting {
+  id        String   @id @default(uuid())
+  companyId String   @map("company_id")
+  category  String   // 'azure_ad', 'email_intake', 'general'
+  key       String
+  value     String?
+  isEncrypted Boolean @default(false) @map("is_encrypted")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, category, key])
+  @@index([companyId])
+  @@map("company_settings")
+}
