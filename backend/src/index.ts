@@ -11,7 +11,7 @@ dotenv.config();
 
 const app = express();
 const prisma = new PrismaClient();
-const PORT = 3001;
+const PORT = parseInt(process.env.PORT || '3000', 10);
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
 
 // Middleware

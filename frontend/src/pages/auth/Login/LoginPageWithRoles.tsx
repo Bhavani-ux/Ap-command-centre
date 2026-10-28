@@ -58,7 +58,9 @@ export const LoginPageWithRoles: React.FC = () => {
 
   const handleMicrosoftSSO = (roleCode: string) => {
     // Redirect to Microsoft OAuth
-    window.location.href = `http://localhost:3001/api/auth/microsoft/login?roleCode=${roleCode}`;
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+    const baseUrl = apiUrl.replace('/api', '');
+    window.location.href = `${baseUrl}/api/auth/microsoft/login?roleCode=${roleCode}`;
   };
 
   const handleRequestAccess = async (roleCode: string, roleName: string) => {
@@ -72,7 +74,8 @@ export const LoginPageWithRoles: React.FC = () => {
 
       const message = prompt('Optional: Add a message for the admin (reason for access):') || '';
 
-      const response = await fetch('http://localhost:3001/api/auth/request-access', {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+      const response = await fetch(`${apiUrl}/auth/request-access`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -288,6 +291,16 @@ export const LoginPageWithRoles: React.FC = () => {
 
             {/* Manual Login Form */}
             <form onSubmit={handleManualLogin} className="space-y-4">
+              {/* Dev credentials hint */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+                <p className="text-blue-800 mb-2"><strong>Test Credentials:</strong></p>
+                <div className="space-y-1">
+                  <p className="text-blue-600"><span className="font-semibold">Admin:</span> <span className="font-mono">admin@acme.com / password123</span></p>
+                  <p className="text-blue-600"><span className="font-semibold">CFO:</span> <span className="font-mono">cfo@acme.com / password123</span></p>
+                  <p className="text-blue-600"><span className="font-semibold">AP Clerk:</span> <span className="font-mono">clerk@acme.com / password123</span></p>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   <div className="flex items-center gap-2">
